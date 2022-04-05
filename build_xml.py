@@ -56,12 +56,12 @@ pw = getpass.getpass()
 
 for nid in node_ids:
     # Create main sections and root
-    root = ET.Element(mets + 'mets')
+    node = get_node_json(nid)
+    root = ET.Element(mets + 'mets', attrib={'LABEL':node['title'][0]['value']})
     filesec = ET.SubElement(root, mets + "fileSec")
     structmap = ET.SubElement(root, mets + "structMap", attrib={"TYPE": "logical"})
     main_level = ET.SubElement(structmap, mets + "div")
     # get main metadata for each nid
-    node = get_node_json(nid)
     members = get_members(nid, user, pw)
     node_uuid = "uuid_" + node['uuid'][0]['value']
     node_ark = "ark:/19837/" + node['uuid'][0]['value']
