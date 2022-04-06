@@ -10,6 +10,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--repo_url', required=True, help='The base url of the islandora repository.')
 parser.add_argument('--node_ids', required = True, help = 'Comma separated list of node IDs to create METS from.')
 parser.add_argument('--outputdir', required=False, help='Specify output directory for METS files. Otherwise will save to same folder as script.')
+parser.add_argument('--ark_naan', required=False, help="If using ARKs derived from Drupal UUID, specify institution's NAAN.")
+parser.add_argument('--ark_shoulder', required=False, help="If using ARKs derived from Drupal UUID, specify ARK shoulder.")
 args = parser.parse_args()
 
 # Register namespaces
@@ -19,6 +21,19 @@ xlink="{http://www.w3.org/1999/xlink}"
 mets="{http://www.loc.gov/METS/}"
 # have user enter base url for repo
 repo_url = args.repo_url
+# if using ARKs derived from uuids, specify NAAN and shoulder
+
+if args.ark_naan is not None:
+    naan = args.ark_naan
+    id_type = "ARK"
+else:
+    id_type = "URL"
+
+if args.ark_shoulder is not None:
+    shoulder=args.ark_shoulder
+else:
+    shoulder=""
+
 # List of node ids
 node_ids = []
 for nid in args.node_ids.split(","):
@@ -64,14 +79,17 @@ for nid in node_ids:
     # get main metadata for each nid
     members = get_members(nid, user, pw)
     node_uuid = "uuid_" + node['uuid'][0]['value']
-    node_ark = "ark:/19837/" + node['uuid'][0]['value']
+    if id_type == 'ARK':
+        node_loc = "ark:/" + naan + "/" + shoulder + node['uuid'][0]['value']
+    else:
+        node_loc = repo_url + "/node/" + nid
     # Use external URI for field_model for fileGrp/type. Need secondary lookup for taxonomy json.
     model_url = repo_url + node['field_model'][0]['url'] + "?_format=json"
     node_model = get_field_model(model_url)
     # Build node element tree
     node_grp = ET.SubElement(filesec, mets + "fileGrp", attrib={"USE": node_model})
     node_file = ET.SubElement(node_grp, mets + "file", attrib={"ID": node_uuid})
-    node_flocat = ET.SubElement(node_file, mets + "FLocat", attrib={xlink + "href": node_ark, "LOCTYPE": "ARK"})
+    node_flocat = ET.SubElement(node_file, mets + "FLocat", attrib={xlink + "href": node_loc, "LOCTYPE": id_type})
     node_fptr = ET.SubElement(main_level, mets + "fptr", attrib={"FILEID": node_uuid})
     # Keep dictionary of file groups to avoid repeated top-level sections
     grp = {node_model:node_grp}
@@ -82,34 +100,40 @@ for nid in node_ids:
             for i in range(len(members)):
                 child_uuid = members[i]['uuid'][0]['value']
                 fptr = ET.SubElement(child_level, mets+"fptr", attrib={"FILEID":"uuid_"+child_uuid})
-                child_ark = "ark:/19837/"+child_uuid
+                if id_type == 'ARK':
+                    child_loc = "ark:/"+ naan + "/" + shoulder + child_uuid
+                else:
+                    child_loc = repo_url+'/node/'+ str(members[i]['nid'][0]['value'])
                 # get ext url for model
                 c_url = repo_url + members[i]['field_model'][0]['url'] + "?_format=json"
                 fgrp_type = get_field_model(c_url)
                 if fgrp_type not in grp.keys():
                     fgrp = ET.SubElement(filesec, mets+'fileGrp', attrib={"USE":fgrp_type})
                     file = ET.SubElement(fgrp, mets+"file", attrib={"ID":"uuid_"+child_uuid})
-                    flocat = ET.SubElement(file, mets+"FLocat", attrib={xlink+"href":child_ark, "LOCTYPE":"ARK"})
+                    flocat = ET.SubElement(file, mets+"FLocat", attrib={xlink+"href":child_loc, "LOCTYPE":id_type})
                     grp[fgrp_type] = fgrp
                 else:
                     parent = grp[fgrp_type]
                     file = ET.SubElement(parent, mets+"file", attrib={"ID":child_uuid})
-                    flocat = ET.SubElement(file, mets+'FLocat', attrib={xlink+"href":child_ark, "LOCTYPE":"ARK"})
+                    flocat = ET.SubElement(file, mets+'FLocat', attrib={xlink+"href":child_loc, "LOCTYPE":id_type})
         else:  # If there is only one child
             child_uuid = members['uuid'][0]['value']
             fptr = ET.SubElement(child_level, mets + "fptr", attrib={"FILEID": "uuid_" + child_uuid})
-            child_ark = "ark:/19837/" + child_uuid
+            if id_type == "ARK":
+                child_loc = "ark:/" + naan + "/" + shoulder + child_uuid
+            else:
+                child_loc = repo_url + '/node/' + str(members['nid'][0]['value'])
             c_url = repo_url + members['field_model'][0]['url'] + "?_format=json"
             fgrp_type = get_field_model(c_url)
             if fgrp_type not in grp.keys():
                 fgrp = ET.SubElement(filesec, mets + 'fileGrp', attrib={"USE": fgrp_type})
                 file = ET.SubElement(fgrp, mets + "file", attrib={"ID": "uuid_" + child_uuid})
-                flocat = ET.SubElement(file, mets + "FLocat", attrib={xlink + "href": child_ark, "LOCTYPE": "ARK"})
+                flocat = ET.SubElement(file, mets + "FLocat", attrib={xlink + "href": child_loc, "LOCTYPE": id_type})
                 grp[fgrp_type] = fgrp
             else:
                 parent = grp[fgrp_type]
                 file = ET.SubElement(parent, mets + "file", attrib={"ID": child_uuid})
-                flocat = ET.SubElement(file, mets + 'FLocat', attrib={xlink + "href": child_ark, "LOCTYPE": "ARK"})
+                flocat = ET.SubElement(file, mets + 'FLocat', attrib={xlink + "href": child_loc, "LOCTYPE": id_type})
     if len(node['field_member_of'])>0:
         parent_level = ET.SubElement(main_level, mets+"div", attrib={"TYPE":"http://purl.org/dc/terms/isPartOf"})
         # if there are multiple parents:
@@ -125,19 +149,22 @@ for nid in node_ids:
                     parent_node = json.loads(r.content.decode('utf-8'))
                     uuid = parent_node['uuid'][0]['value']
                     fptr = ET.SubElement(parent_level, mets+"fptr", attrib={"FILEID":"uuid_"+uuid})
-                    parent_ark = "ark:/19837/" + uuid
+                    if id_type == 'ARK':
+                        parent_loc = "ark:/" + naan + "/" + shoulder + uuid
+                    else:
+                        parent_loc = repo_url + "/node/" + str(parent_node['nid'][0]['value'])
                     # Get parent model type for file grp from taxonomy json
                     model_url = repo_url + parent_node['field_model'][0]['url'] + "?_format=json"
                     model = get_field_model(model_url)
                     if model not in grp.keys():
                         pgrp = ET.SubElement(filesec, mets + 'fileGrp', attrib={"USE": model})
                         pfile = ET.SubElement(pgrp, mets+'file', attrib={'ID':"uuid_"+uuid})
-                        pflocat = ET.SubElement(pfile, mets+'FLocat', attrib={xlink+"href":parent_ark, "LOCTYPE":"ARK"})
+                        pflocat = ET.SubElement(pfile, mets+'FLocat', attrib={xlink+"href":parent_loc, "LOCTYPE":id_type})
                         grp[model]=pgrp
                     else:
                         filegroup = grp[model]
                         pfile = ET.SubElement(filegroup, mets+"file", attrib={'ID':"uuid_"+uuid})
-                        pflocat = ET.SubElement(pfile, mets+"FLocat", attrib={xlink+"href":parent_ark, "LOCTYPE":"ARK"})
+                        pflocat = ET.SubElement(pfile, mets+"FLocat", attrib={xlink+"href":parent_loc, "LOCTYPE":id_type})
         else:
             p_url = repo_url + node['field_member_of'] + "?_format=json"
             r = requests.get(p_url)
@@ -145,19 +172,22 @@ for nid in node_ids:
                 parent_node = json.loads(r.content.decode('utf-8'))
                 uuid = parent_node['uuid'][0]['value']
                 fptr = ET.SubElement(parent_level, mets+"fptr", attrib={"FILEID":"uuid_"+uuid})
-                parent_ark = "ark:/19837/" + uuid
+                if id_type == 'ARK':
+                    parent_loc = "ark:/"+ naan + "/" + shoulder + uuid
+                else:
+                    parent_loc = repo_url+'/node/'+str(parent_node['nid'][0]['value'])
                 # Get parent model type for file grp from taxonomy json
                 model_url = repo_url + parent_node['field_model'][0]['url'] + "?_format=json"
                 model = get_field_model(model_url)
                 if model not in grp.keys():
                     pgrp = ET.SubElement(filesec, mets + 'fileGrp', attrib={"USE": model})
                     pfile = ET.SubElement(pgrp, mets + 'file', attrib={'ID': "uuid_" + uuid})
-                    pflocat = ET.SubElement(pfile, mets + 'FLocat', attrib={xlink + "href": parent_ark, "LOCTYPE": "ARK"})
+                    pflocat = ET.SubElement(pfile, mets + 'FLocat', attrib={xlink + "href": parent_loc, "LOCTYPE": id_type})
                     grp[model] = pgrp
                 else:
                     filegroup = grp[model]
                     pfile = ET.SubElement(filegroup, mets + "file", attrib={'ID': "uuid_" + uuid})
-                    pflocat = ET.SubElement(pfile, mets + "FLocat", attrib={xlink + "href": parent_ark, "LOCTYPE": "ARK"})
+                    pflocat = ET.SubElement(pfile, mets + "FLocat", attrib={xlink + "href": parent_loc, "LOCTYPE": id_type})
     tree = ET.ElementTree(root)
     ET.indent(tree, space='\t')
     if args.outputdir is not None and os.path.exists(args.outputdir):
