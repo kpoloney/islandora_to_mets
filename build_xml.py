@@ -66,7 +66,7 @@ def get_field_model(url):
     else:
         return "invalid url"
 
-user = input("Enter rest client username: ")
+user = input("Enter REST client username: ")
 pw = getpass.getpass()
 
 for nid in node_ids:
@@ -80,7 +80,7 @@ for nid in node_ids:
     members = get_members(nid, user, pw)
     node_uuid = "uuid_" + node['uuid'][0]['value']
     if id_type == 'ARK':
-        node_loc = "ark:/" + naan + "/" + shoulder + node['uuid'][0]['value']
+        node_loc = "ark:" + naan + "/" + shoulder + node['uuid'][0]['value']
     else:
         node_loc = repo_url + "/node/" + nid
     # Use external URI for field_model for fileGrp/type. Need secondary lookup for taxonomy json.
@@ -101,7 +101,7 @@ for nid in node_ids:
                 child_uuid = members[i]['uuid'][0]['value']
                 fptr = ET.SubElement(child_level, mets+"fptr", attrib={"FILEID":"uuid_"+child_uuid})
                 if id_type == 'ARK':
-                    child_loc = "ark:/"+ naan + "/" + shoulder + child_uuid
+                    child_loc = "ark:"+ naan + "/" + shoulder + child_uuid
                 else:
                     child_loc = repo_url+'/node/'+ str(members[i]['nid'][0]['value'])
                 # get ext url for model
@@ -120,7 +120,7 @@ for nid in node_ids:
             child_uuid = members['uuid'][0]['value']
             fptr = ET.SubElement(child_level, mets + "fptr", attrib={"FILEID": "uuid_" + child_uuid})
             if id_type == "ARK":
-                child_loc = "ark:/" + naan + "/" + shoulder + child_uuid
+                child_loc = "ark:" + naan + "/" + shoulder + child_uuid
             else:
                 child_loc = repo_url + '/node/' + str(members['nid'][0]['value'])
             c_url = repo_url + members['field_model'][0]['url'] + "?_format=json"
@@ -150,7 +150,7 @@ for nid in node_ids:
                     uuid = parent_node['uuid'][0]['value']
                     fptr = ET.SubElement(parent_level, mets+"fptr", attrib={"FILEID":"uuid_"+uuid})
                     if id_type == 'ARK':
-                        parent_loc = "ark:/" + naan + "/" + shoulder + uuid
+                        parent_loc = "ark:" + naan + "/" + shoulder + uuid
                     else:
                         parent_loc = repo_url + "/node/" + str(parent_node['nid'][0]['value'])
                     # Get parent model type for file grp from taxonomy json
@@ -173,7 +173,7 @@ for nid in node_ids:
                 uuid = parent_node['uuid'][0]['value']
                 fptr = ET.SubElement(parent_level, mets+"fptr", attrib={"FILEID":"uuid_"+uuid})
                 if id_type == 'ARK':
-                    parent_loc = "ark:/"+ naan + "/" + shoulder + uuid
+                    parent_loc = "ark:"+ naan + "/" + shoulder + uuid
                 else:
                     parent_loc = repo_url+'/node/'+str(parent_node['nid'][0]['value'])
                 # Get parent model type for file grp from taxonomy json
