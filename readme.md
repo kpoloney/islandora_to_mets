@@ -1,3 +1,5 @@
+Note: This script has been moved here: https://github.com/kpoloney/create_aip . It will be kept up to date in that repository.
+
 # Map Islandora metadata to METS
 
 This script takes a list of Islandora node IDs as input and returns a METS XML file for each node.
